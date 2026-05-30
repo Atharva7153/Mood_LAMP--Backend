@@ -55,6 +55,13 @@
           <input id="espIp" type="text" value="http://192.168.170.87" class="setting-input"/>
         </div>
         <div class="setting-card">
+          <label for="multiSpeedSlider" class="setting-label">Multi Transition Speed (ms)</label>
+          <div class="setting-row">
+            <input id="multiSpeedSlider" type="range" min="3" max="200" value="15" step="1" />
+            <span id="multiSpeedValue">15 ms</span>
+          </div>
+        </div>
+        <div class="setting-card">
           <button id="refresh" class="btn btn-primary">🔄 Refresh</button>
         </div>
       </div>
@@ -300,11 +307,37 @@
     }
   }
 
+  // Transition speed control for multi-color animations
+  const multiSpeedSlider = document.getElementById('multiSpeedSlider');
+  const multiSpeedValue = document.getElementById('multiSpeedValue');
+
+  function sendSpeedToESP(ms) {
+    const esp = getESP();
+    if (!esp) return;
+    fetch(esp + '/color/speed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ms: Number(ms) })
+    }).then(async res => {
+      if (!res.ok) console.warn('Failed to set speed on ESP', await res.text());
+    }).catch(err => console.warn('Failed to set speed on ESP', err));
+  }
+
+  if (multiSpeedSlider) {
+    multiSpeedSlider.addEventListener('input', (e) => {
+      multiSpeedValue.innerText = `${e.target.value} ms`;
+    });
+    multiSpeedSlider.addEventListener('change', (e) => {
+      sendSpeedToESP(e.target.value);
+    });
+  }
+
   document.getElementById('refresh').onclick = fetchMoods;
   document.getElementById('enableIrBtn').onclick = enableIR;
   document.getElementById('disableIrBtn').onclick = disableIR;
   
   fetchMoods();
+  if (multiSpeedSlider) sendSpeedToESP(Number(multiSpeedSlider.value));
   </script>
 </body>
 </html>
