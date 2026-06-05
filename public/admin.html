@@ -71,6 +71,43 @@
     </div>
   </div>
 
+  <!-- Edit Mood Modal -->
+  <div id="editModalOverlay" class="modal-overlay"></div>
+  <div id="editMoodModal" class="custom-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="editModalTitle">Edit Mood</h3>
+        <button type="button" class="modal-close" id="editModalCloseBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="editMoodForm" class="mood-form">
+          <div class="form-group">
+            <label for="editMoodName" class="form-label">Mood Name:</label>
+            <input id="editMoodName" type="text" class="form-input" disabled/>
+          </div>
+
+          <div class="form-group">
+            <label for="editSingleColorPicker" class="form-label">Single Color:</label>
+            <div class="color-picker-wrapper">
+              <input id="editSingleColorPicker" type="color" class="color-picker"/>
+              <span id="editSingleColorPreview" class="color-preview"></span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Multi Colors:</label>
+            <div id="editMultiColorsContainer" class="multi-colors-container"></div>
+            <button type="button" id="editAddColorBtn" class="btn btn-secondary btn-sm">+ Add Color</button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="editModalCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="editModalSaveBtn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Custom Modal System
     const modal = {
@@ -170,6 +207,134 @@
     modal.cancelBtn.addEventListener('click', () => modal.close(false));
     modal.confirmBtn.addEventListener('click', () => modal.close(true));
 
+    // Edit Modal System
+    const editModal = {
+      overlay: document.getElementById('editModalOverlay'),
+      container: document.getElementById('editMoodModal'),
+      title: document.getElementById('editModalTitle'),
+      closeBtn: document.getElementById('editModalCloseBtn'),
+      cancelBtn: document.getElementById('editModalCancelBtn'),
+      saveBtn: document.getElementById('editModalSaveBtn'),
+      form: document.getElementById('editMoodForm'),
+      currentMood: null,
+      resolve: null,
+      isOpen: false,
+
+      show(mood) {
+        this.currentMood = mood;
+        this.title.textContent = `Edit Mood: ${mood.name}`;
+        
+        // Set mood name (disabled)
+        document.getElementById('editMoodName').value = mood.name;
+        
+        // Set single color
+        const singleHex = rgbToHex(mood.singleColor.r, mood.singleColor.g, mood.singleColor.b);
+        document.getElementById('editSingleColorPicker').value = singleHex;
+        const rgb = hexToRgb(singleHex);
+        document.getElementById('editSingleColorPreview').innerText = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+        
+        // Clear and populate multi colors
+        document.getElementById('editMultiColorsContainer').innerHTML = '';
+        if (mood.multiColors && mood.multiColors.length > 0) {
+          mood.multiColors.forEach(color => {
+            const hex = rgbToHex(color.r, color.g, color.b);
+            addEditMultiColorInput(hex);
+          });
+        } else {
+          addEditMultiColorInput('#FF0000');
+        }
+
+        this.overlay.classList.add('active');
+        this.container.classList.add('active');
+        this.isOpen = true;
+
+        return new Promise((resolve) => {
+          this.resolve = resolve;
+        });
+      },
+
+      close(result = false) {
+        this.overlay.classList.remove('active');
+        this.container.classList.remove('active');
+        this.isOpen = false;
+        if (this.resolve) {
+          this.resolve(result);
+          this.resolve = null;
+        }
+      }
+    };
+
+    // Edit modal event listeners
+    editModal.closeBtn.addEventListener('click', () => editModal.close(false));
+    editModal.overlay.addEventListener('click', () => editModal.close(false));
+    editModal.cancelBtn.addEventListener('click', () => editModal.close(false));
+
+    editModal.saveBtn.addEventListener('click', async () => {
+      const singleHex = document.getElementById('editSingleColorPicker').value;
+      const single = hexToRgb(singleHex);
+      
+      const multiInputs = document.querySelectorAll('#editMultiColorsContainer input[type="color"]');
+      const multi = Array.from(multiInputs).map(i => hexToRgb(i.value));
+
+      const payload = { singleColor: single, multiColors: multi };
+      
+      try {
+        const res = await fetch(getBackend() + '/moods/' + editModal.currentMood._id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Update failed');
+        await modal.success(`Mood "${editModal.currentMood.name}" updated successfully!`, 'Success');
+        editModal.close(true);
+        fetchMoods();
+      } catch (err) {
+        await modal.error('Failed to update mood: ' + err, 'Error');
+      }
+    });
+
+    document.getElementById('editSingleColorPicker').addEventListener('input', (e) => {
+      const rgb = hexToRgb(e.target.value);
+      document.getElementById('editSingleColorPreview').innerText = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+    });
+
+    function addEditMultiColorInput(hexValue) {
+      const container = document.getElementById('editMultiColorsContainer');
+      const wrapper = document.createElement('div');
+      wrapper.className = 'color-input-row';
+    
+      const colorPicker = document.createElement('input');
+      colorPicker.type = 'color';
+      colorPicker.className = 'color-picker';
+      colorPicker.value = hexValue || '#FF0000';
+    
+      const label = document.createElement('span');
+      label.className = 'color-value';
+      const updateLabel = () => {
+        const rgb = hexToRgb(colorPicker.value);
+        label.innerText = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+      };
+      colorPicker.addEventListener('input', updateLabel);
+      updateLabel();
+    
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn btn-danger btn-sm';
+      remove.innerText = '✕';
+      remove.onclick = () => wrapper.remove();
+    
+      wrapper.appendChild(colorPicker);
+      wrapper.appendChild(label);
+      wrapper.appendChild(remove);
+      container.appendChild(wrapper);
+    }
+
+    document.getElementById('editAddColorBtn').onclick = () => addEditMultiColorInput('#FF0000');
+
+    async function openEditMoodModal(mood) {
+      await editModal.show(mood);
+    }
+
     function getBackend() { return document.getElementById('backendUrl').value.trim(); }
 
     function hexToRgb(hex) {
@@ -233,6 +398,20 @@
       
         div.appendChild(colorsDiv);
 
+        // Buttons container
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'mood-buttons';
+
+        // Edit button
+        const edit = document.createElement('button');
+        edit.className = 'btn btn-primary btn-sm';
+        edit.innerText = 'Edit';
+        edit.onclick = async () => {
+          await openEditMoodModal(m);
+        };
+        buttonsDiv.appendChild(edit);
+
+        // Delete button
         const del = document.createElement('button');
         del.className = 'btn btn-danger btn-sm';
         del.innerText = 'Delete';
@@ -244,8 +423,9 @@
             fetchMoods();
           } catch (err) { modal.error('Delete failed: ' + err, 'Error'); }
         };
-        div.appendChild(del);
+        buttonsDiv.appendChild(del);
 
+        div.appendChild(buttonsDiv);
         container.appendChild(div);
       });
     }

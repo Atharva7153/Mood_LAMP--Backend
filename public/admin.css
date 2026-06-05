@@ -618,6 +618,29 @@ header h1 span {
   align-items: center;
 }
 
+.mood-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.mood-buttons .btn {
+  flex: 1;
+  min-width: 90px;
+}
+
+@media (max-width: 768px) {
+  .mood-buttons {
+    flex-direction: column;
+  }
+
+  .mood-buttons .btn {
+    width: 100%;
+  }
+}
+
 .color-box {
   width: 50px;
   height: 50px;
